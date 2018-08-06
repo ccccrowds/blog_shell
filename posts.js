@@ -4,10 +4,12 @@ const marked = require('marked')
 const highlight = require('highlight.js')
 const fetch = require('isomorphic-fetch')
 const uploader = require('./uploader')
+const log = require('./log')
 
 const config = {
   url: 'http://39.107.86.47:8000/blog/',
-  auth: 'JWT eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo0LCJ1c2VybmFtZSI6Imx4eTEyMyIsImV4cCI6MTUzMjg4NTA2NSwiZW1haWwiOm51bGx9.eyXixklr3WH5zP2HzIeTLJ-jirhGUaZHOK4G-LTKF48'
+  auth: 'JWT eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo0LCJ1c2VybmFtZSI6Imx4eTEyMyIsImV4cCI6MTUzMjg4NTA2NSwiZW1haWwiOm51bGx9.eyXixklr3WH5zP2HzIeTLJ-jirhGUaZHOK4G-LTKF48',
+  category: 'http://39.107.86.47:8000/category/'
 }
 
 marked.setOptions({
@@ -48,6 +50,29 @@ class Posts {
   constructor (name) {
     this.init(name)
   }
+  async handleCategory (category) {
+    const categories = await fetch(config.category, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }).then(res => res.json())
+    
+    if (!categories.includes(category)) {
+      log('分类中不包含分类：' + category)
+      log('正在创建分类：' + category)
+      await fetch(config.category, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: category,
+          desc: category
+        })
+      })
+    }
+  }
   async init (name) {
     const file = this.readFile(name)
     const info = this.getInfo(file)
@@ -62,7 +87,8 @@ class Posts {
       "category": info.categories,
       "tags": info.tags
     }
-    this.send(params).catch(console.log)
+    await this.handleCategory(info.categories)
+    this.send(params)
   }
   readFile (name) {
     const filePath = path.resolve(__dirname, name)
@@ -107,7 +133,6 @@ class Posts {
     return infoMap
   }
   send (params) {
-    console.log(params)
     return fetch(config.url, {
       method: 'POST',
       headers: {
@@ -118,11 +143,9 @@ class Posts {
     }).then(res => res.json())
       .then(_ => {
         console.log('发布成功！')
-        console.log(_)
       })
       .catch(_ => {
         console.log('发布失败')
-        console.log(_)
       })
   }
 }
