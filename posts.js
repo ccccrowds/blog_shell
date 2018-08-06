@@ -57,7 +57,8 @@ class Posts {
         'Content-Type': 'application/json'
       }
     }).then(res => res.json())
-    
+      .then(res => res.map(item => item.name))
+
     if (!categories.includes(category)) {
       log('分类中不包含分类：' + category)
       log('正在创建分类：' + category)
