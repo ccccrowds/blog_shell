@@ -1,2 +1,5 @@
 node_modules/
 source/
+.cache
+pic/
+pic-result/

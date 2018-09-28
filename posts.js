@@ -5,12 +5,9 @@ const highlight = require('highlight.js')
 const fetch = require('isomorphic-fetch')
 const uploader = require('./uploader')
 const log = require('./log')
-
-const config = {
-  url: 'http://39.107.86.47:8000/blog/',
-  auth: 'JWT eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo0LCJ1c2VybmFtZSI6Imx4eTEyMyIsImV4cCI6MTUzMjg4NTA2NSwiZW1haWwiOm51bGx9.eyXixklr3WH5zP2HzIeTLJ-jirhGUaZHOK4G-LTKF48',
-  category: 'http://39.107.86.47:8000/category/'
-}
+const _ = require('lodash')
+const config = require('./config')
+const picture = require('./picture')
 
 marked.setOptions({
   renderer: new marked.Renderer(),
@@ -47,54 +44,112 @@ const infoKeys = [
 ]
 
 class Posts {
-  constructor (name) {
-    this.init(name)
+  getUrl (action) {
+    return `${config.ip}:${config.port}${action}`
   }
   async handleCategory (category) {
-    const categories = await fetch(config.category, {
+    const url = this.getUrl(config.category)
+    let ret = ''
+    const categories = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
       }
     }).then(res => res.json())
-      .then(res => res.map(item => item.name))
+      .then(res => res.data)
+    const type = _.find(categories, item => item.name === category)
 
-    if (!categories.includes(category)) {
-      log('分类中不包含分类：' + category)
-      log('正在创建分类：' + category)
-      await fetch(config.category, {
+    if (type) {
+      return type
+    }
+
+    log('分类中不包含分类：' + category)
+    log('正在创建分类：' + category)
+
+    return await fetch(url + '/add', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: category,
+        desc: category
+      })
+    }).then(res => res.json())
+      .then(res => {
+        if (res.errno) return ''
+        return res.data
+      })
+  }
+  async handleTags (tags) {
+    const url = this.getUrl(config.tag)
+    const ret = []
+    const currentTags = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }).then(res => res.json())
+      .then(res => res.data)
+    
+    for (let i = 0; i < tags.length; i++) {
+      const tag = tags[i];
+      const t = _.find(currentTags, item => item.name === tag)
+      if (t) {
+        ret.push(t)
+        continue
+      }
+      log('分类中不包含分类：' + tag)
+      log('正在创建分类：' + tag)
+      const r = await fetch(url + '/add', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          name: category,
-          desc: category
+          name: tag,
+          desc: tag
         })
+      }).then(res => res.json())
+      .then(res => {
+        if (res.errno) return ''
+        return res.data
       })
+      ret.push(r)
     }
+    return _.uniq(ret, item => item && item.name).filter(item => item)
   }
   async init (name) {
-    const file = this.readFile(name)
+    const { stat, content: file } = this.readFile(name)
     const info = this.getInfo(file)
     const content = await this.getContent(file)
+    const type = await this.handleCategory(info.categories)
+    const tags = await this.handleTags(info.tags)
+    const thumb = await this.getThumb()
     const params = {
-      "author": 3,
+      // "author": config.author,
       "title": info.title,
-      "body": marked(content.content),
-      "excerpt": content.desc,
-      "published":true,
-      "commentabled":true,
-      "category": info.categories,
-      "tags": info.tags
+      "content": marked(content.content),
+      "desc": content.desc,
+      // "published":true,
+      // "commentabled":true,
+      "type": type ? type._id : '',
+      "tag": tags.map(item => item._id),
+      "create_at": stat.birthtime,
+      "update_at": stat.mtime,
+      thumb
     }
-    await this.handleCategory(info.categories)
+
     this.send(params)
   }
   readFile (name) {
     const filePath = path.resolve(__dirname, name)
+    const stat = fs.statSync(filePath)
     const content = fs.readFileSync(filePath, 'utf8')
-    return content
+    return {
+      stat,
+      content
+    }
   }
   /**
    * 获取文章的内容
@@ -133,13 +188,21 @@ class Posts {
     })
     return infoMap
   }
+  async getThumb () {
+    const pic = await picture()
+    return 'http://oowxefv5q.bkt.clouddn.com/' + pic.key
+  }
   send (params) {
-    return fetch(config.url, {
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    const url = this.getUrl(config.post)
+    if (config.needAuth) {
+      headers.Authorization = config.auth
+    }
+    return fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: config.auth,
-      },
+      headers,
       body: JSON.stringify(params)
     }).then(res => res.json())
       .then(_ => {

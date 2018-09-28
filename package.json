@@ -13,8 +13,17 @@
     "marked": "^0.4.0"
   },
   "dependencies": {
+    "chalk": "^2.4.1",
+    "commander": "^2.18.0",
     "form-data": "^2.3.2",
+    "gm": "^1.23.1",
     "isomorphic-fetch": "^2.2.1",
-    "request": "^2.87.0"
+    "lodash": "^4.17.11",
+    "node-qiniu": "^6.2.0",
+    "qiniu": "^7.2.1",
+    "request": "^2.87.0",
+    "rimraf": "^2.6.2",
+    "sharp": "^0.20.8",
+    "uuid": "^3.3.2"
   }
 }
